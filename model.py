@@ -49,13 +49,13 @@ class Model:
 
         return math.exp(np.dot(w_vec.transpose(), x_vec))
 
-    def objective_function_denominator_sum(self):
+    def objective_function_denominator_sum(self): # TODO only predicted y or all y?
         row_dim, col_dim = self.input_matrix.shape
 
         d_sum = 0
-        for i in range(0, col_dim-1):
+        for i in range(0, row_dim-1):
             feature_vec = self.input_matrix[i]
-            d_sum += math.exp(np.dot(self.weight_vec.transpose(), feature_vec))
+            d_sum += self.compute_score(feature_vec, self.weight_vec)
 
         self.denominator_sum = d_sum
 
@@ -83,13 +83,17 @@ class Model:
 
         return obj_func - lamb * norm
 
-    def get_predicted_class(self):
-        y_pred = np.zeros((1, len(self.label_dict)))
-
+    def get_predicted_class(self, x_vec):
         max = -(sys.maxsize - 1)
         max_index = 0
 
-        for
+        for i in range(0, len(self.label_dict)):  # for each class feature vector
+            score = self.compute_score(x_vec, self.weight_vec)
+            if score > max:
+                max = score
+                max_index = i
+
+        return max_index
 
     '''
     def gradient(self, x_vec, w_vec, lamb):
@@ -151,10 +155,10 @@ class Unigram(Model):
     def generate_input_matrix(self):
         (feature_dict, label_dict, input_list) = self.find_features_and_labels()
         num_of_inputs = len(self.data)
+        row_dim = num_of_inputs * len(label_dict)
         column_dim = len(feature_dict) * len(label_dict)  # feature vect of classes. See class notes
-        output_dim = len(label_dict)
 
-        input_matrix = np.zeros((num_of_inputs, column_dim))  # create matrix of dim inputs x features
+        input_matrix = np.zeros((row_dim, column_dim))  # create matrix of dim inputs x features
 
         print(label_dict)
         print(len(feature_dict))
@@ -166,14 +170,19 @@ class Unigram(Model):
 
             label_index = label_dict[label]  # extract output index
 
-            feature_vec = input_matrix[i]
+            for key1, value1 in features.items():  # for each {feature: count} entry
+                index_of_feature = self.feature_dict[key1]  # get associated column index from global feature
+                # column_index = self.get_feature_to_column_index(index_of_feature, label)
 
-            for key, value in features.items():  # for each {feature: count} entry
-                index_of_feature = self.feature_dict[key]  # get associated index of global feature
-                column_index = self.get_feature_to_column_index(index_of_feature, label)
+                for key2, value2 in label_dict.items():  # {class: index}
+                    # duplicate feature vectors so that each vector has valid features for each class
+                    # ex: if x = [1 2 3 4 ...], then for each class label, create a feature vector from x
+                    # f1 = [1 2 3 4 0 ... 0], f2 = [0 ... 0 1 2 3 4 0 ... 0], ...
 
-                # update feature vector of each input
-                feature_vec[column_index] = value
+                    feature_vec = input_matrix[i + value2]
+                    column_index = self.get_feature_to_column_index(index_of_feature, key2)
+
+                    feature_vec[column_index] = value1
 
         self.input_matrix = input_matrix
         self.weight_vec = np.random.randint(low=0, high=10, size=column_dim)  # create weight vec of size column dim
