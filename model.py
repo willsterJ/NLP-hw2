@@ -84,16 +84,21 @@ class Model:
         return obj_func - lamb * norm
 
     def get_predicted_class(self, x_vec):
+        """
+        The predicted class is the feature class vector with the highest score
+        :param x_vec:
+        :return: max_key
+        """
         max = -(sys.maxsize - 1)
-        max_index = 0
+        max_key = None
 
-        for i in range(0, len(self.label_dict)):  # for each class feature vector
+        for key, value in self.label_dict.items():  # for each class feature vector
             score = self.compute_score(x_vec, self.weight_vec)
             if score > max:
                 max = score
-                max_index = i
+                max_key = key
 
-        return max_index
+        return max_key
 
     '''
     def gradient(self, x_vec, w_vec, lamb):
