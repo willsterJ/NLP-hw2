@@ -14,7 +14,7 @@ import matplotlib.pyplot as plt
 class Model:
     def __init__(self, data):
         self.data = data  # numpy matrix [[label, name]]
-        self.feature_dict = {}  # feature_name: input_matrix_index
+        self.feature_dict = {}  # feature_name: feature_vec index
         self.label_dict = {}  # true_output: label_index
 
         self.data_points_list = []  # list of Data_Point
@@ -25,15 +25,21 @@ class Model:
         self.FEATURE_DIM = 0
         self.OUTPUT_DIM = 0
 
-        self.lamb = config.Config.lamb
+        self.lamb = config.Config.lamb  # user-specified parameter
 
+        # to be used for plotting objective function
         self.plot_data_x = []
         self.plot_data_y = []
 
-    def find_features_and_labels(self):
+    def find_features_and_labels(self):  # subclass implemented function
         pass
 
     def generate_input_matrix(self):
+        """
+        Creates the design matrix using the feature and label data generated from subclass. Iterate over list of
+        data_points and update their values. Also create a random weight matrix
+        :return:
+        """
         self.INPUT_DIM = len(self.data)
         row_dim = self.INPUT_DIM
         self.FEATURE_DIM = len(self.feature_dict)  # feature vect of classes. See class notes
@@ -62,21 +68,35 @@ class Model:
         return input_matrix
 
     def compute_score(self, x_vec, w_vec):
-
+        '''
+        computes the dot product between a weight vec and an input vec
+        :param x_vec:
+        :param w_vec:
+        :return:
+        '''
         return np.dot(w_vec.transpose(), x_vec).astype(np.double)
 
     def compute_all_predicted_labels(self):
+        """
+        computes and updates predicted labels for each input
+        :return:
+        """
         for i, data_point in enumerate(self.data_points_list):
-            data_point.pred_label = self.get_predicted_label_from_index(i)
+            data_point.pred_label = self.update_predicted_label_from_index(i)
 
-    def get_predicted_label_from_index(self, input_index):
-
+    def update_predicted_label_from_index(self, input_index):
+        """
+        From input data index, update its associated predicted label
+        :param input_index:
+        :return:
+        """
         x_vec = self.input_matrix[input_index]
         max = -(sys.maxsize - 1)
         max_key = None  # label name
 
-        for key, value in self.label_dict.items():  # for each class
-            score = self.compute_score(x_vec, self.weight_matrix[value])  # each weight vector
+        # find max score
+        for key, value in self.label_dict.items():  # for each {class name: class index}
+            score = self.compute_score(x_vec, self.weight_matrix[value])  # each class weight vector
             if score > max:
                 max = score
                 max_key = key
@@ -84,10 +104,21 @@ class Model:
         return max_key
 
     def maximum_entropy(self, weight_vec, feature_vec, denominator):
+        """
+        Find the maximum entropy of a input data with its associated weight vec
+        :param weight_vec:
+        :param feature_vec:
+        :param denominator:
+        :return:
+        """
 
         return math.exp(self.compute_score(weight_vec, feature_vec) / denominator)
 
     def maximum_entropy_denominator_sum(self):
+        """
+        Computes the denominator sum
+        :return:
+        """
         d_sum = 0
         for i, data_point in enumerate(self.data_points_list):
             feature_vec = self.input_matrix[i]
@@ -97,12 +128,17 @@ class Model:
         return d_sum
 
     def compute_gradient(self):
+        """
+        Compute the gradient. Stores all partial gradients in a matrix, with each row corresponding to a class weight's
+        partial derivative
+        :return:
+        """
         self.compute_all_predicted_labels()  # update all predicted labels
-
         partial_gradients = np.zeros((self.OUTPUT_DIM, self.FEATURE_DIM))
 
         right_sum = np.zeros((1, self.FEATURE_DIM))
         pred_denominator = self.maximum_entropy_denominator_sum()
+        # compute expectation quantity from what the model predicts (using predicted labels)
         for i, data_point in enumerate(self.data_points_list):
             pred_label_index = self.label_dict[data_point.pred_label]
 
@@ -111,6 +147,7 @@ class Model:
             right_sum = np.add(right_sum, self.maximum_entropy(weight_vec, feature_vec, pred_denominator) * feature_vec)
 
         left_sum = np.zeros((1, self.FEATURE_DIM))
+        # compute total feature count over examples with true y class
         for i in range(0, self.OUTPUT_DIM - 1):  # for each partial gradient (i.e. weight vector)
             for j, data_point in enumerate(self.data_points_list):  # for each input
                 feature_vec = self.input_matrix[j]
@@ -124,6 +161,10 @@ class Model:
         return partial_gradients
 
     def gradient_ascent(self):
+        """
+        Gradient ascent routine
+        :return:
+        """
         epsilon = config.Config.epsilon
         lr = config.Config.learning_rate
         t = 0
@@ -131,6 +172,7 @@ class Model:
 
         while t == 0 or diff > epsilon:
             print("%d: %f" % (t, diff))
+            # for plotting use
             self.plot_data_x.append(t)
             self.plot_data_y.append(self.objective_function())
 
@@ -151,6 +193,10 @@ class Model:
         print("Accuracy: %f" %(count / len(self.data_points_list)))
 
     def objective_function(self):
+        """
+        compute the objective function of the model
+        :return:
+        """
         denominator = self.objective_function_denominator_sum()
 
         obj_func = 0
@@ -165,6 +211,8 @@ class Model:
 
             score = self.compute_score(feature_vec, weight_vec)
             numerator = math.exp(score)
+
+            # TODO DEBUG: numerical underflow...
 
             quotient = numerator / denominator
             if (quotient <= 0):

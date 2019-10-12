@@ -13,7 +13,6 @@ input_matrix = model.generate_input_matrix()
 test_point = model.data_points_list[0]
 print(test_point.true_label)
 
-print(model.get_predicted_label_from_index(0))
 
 model.gradient_ascent()
 
