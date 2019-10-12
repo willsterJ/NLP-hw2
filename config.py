@@ -5,6 +5,6 @@ class Config:
     test_data = './data2-2018/pnp-test.txt'
     validate_data = './data2-2018/pnp-validate.txt'
 
-    lamb = 2
-    epsilon = 1
-    learning_rate = 3
+    lamb = 0.01
+    epsilon = 0.001
+    learning_rate = 0.001
