@@ -103,29 +103,30 @@ class Model:
 
         return max_key
 
-    def maximum_entropy(self, weight_vec, feature_vec, denominator):
+    def maximum_entropy(self, input_index):
         """
-        Find the maximum entropy of a input data with its associated weight vec
-        :param weight_vec:
-        :param feature_vec:
-        :param denominator:
+        Find the maximum entropy of a input data given its index
+        :param input_index
         :return:
         """
+        data_point = self.data_points_list[input_index]
+        pred_label_index = self.label_dict[data_point.pred_label]
+        weight_vec = self.weight_matrix[pred_label_index]
+        feature_vec = self.input_matrix[input_index]
 
-        return math.exp(self.compute_score(weight_vec, feature_vec) / denominator)
+        numerator = math.exp(self.compute_score(weight_vec, feature_vec))
+        denominator = 0
+        for i in range(0, self.OUTPUT_DIM - 1):
+            w_vec = self.weight_matrix[i]
+            score = self.compute_score(w_vec, feature_vec)
+            denominator += math.exp(score)
 
-    def maximum_entropy_denominator_sum(self):
-        """
-        Computes the denominator sum
-        :return:
-        """
-        d_sum = 0
-        for i, data_point in enumerate(self.data_points_list):
-            feature_vec = self.input_matrix[i]
-            weight_vec = self.weight_matrix[self.label_dict[data_point.pred_label]]
-            d_sum += math.exp(self.compute_score(feature_vec, weight_vec))
+        try:
+            quotient = numerator / denominator
+        except ValueError:
+            print('input_i: %d , denom: %d' % (input_index, denominator))
 
-        return d_sum
+        return quotient
 
     def compute_gradient(self):
         """
@@ -137,14 +138,12 @@ class Model:
         partial_gradients = np.zeros((self.OUTPUT_DIM, self.FEATURE_DIM))
 
         right_sum = np.zeros((1, self.FEATURE_DIM))
-        pred_denominator = self.maximum_entropy_denominator_sum()
         # compute expectation quantity from what the model predicts (using predicted labels)
         for i, data_point in enumerate(self.data_points_list):
-            pred_label_index = self.label_dict[data_point.pred_label]
-
             feature_vec = self.input_matrix[i]
-            weight_vec = self.weight_matrix[pred_label_index]
-            right_sum = np.add(right_sum, self.maximum_entropy(weight_vec, feature_vec, pred_denominator) * feature_vec)
+            max_ent = self.maximum_entropy(i)
+
+            right_sum = np.add(right_sum, max_ent * feature_vec)
 
         left_sum = np.zeros((1, self.FEATURE_DIM))
         # compute total feature count over examples with true y class
@@ -166,7 +165,8 @@ class Model:
         :return:
         """
         epsilon = config.Config.epsilon
-        lr = config.Config.learning_rate
+        lr_0 = config.Config.learning_rate
+        lr = lr_0
         t = 0
         diff = sys.maxsize
 
@@ -178,8 +178,8 @@ class Model:
 
             t += 1
             prev_weights = self.weight_matrix
-            curr_weights = prev_weights + (lr * self.compute_gradient())
-            lr = lr / math.sqrt(t)
+            curr_weights = np.add(prev_weights, (lr * self.compute_gradient()))
+            lr = lr_0 / math.sqrt(t)
             diff = np.linalg.norm(np.subtract(curr_weights, prev_weights))
 
             self.weight_matrix = curr_weights
