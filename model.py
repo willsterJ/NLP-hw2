@@ -63,7 +63,7 @@ class Model:
         self.input_matrix = input_matrix
 
         np.random.seed(0)
-        self.weight_matrix = np.random.randint(low=0, high=1, size=(self.OUTPUT_DIM, self.FEATURE_DIM)).astype("float")
+        self.weight_matrix = np.random.randint(low=1, high=5, size=(self.OUTPUT_DIM, self.FEATURE_DIM)).astype("double")
 
         return input_matrix
 
@@ -91,14 +91,14 @@ class Model:
         :return:
         """
         x_vec = self.input_matrix[input_index]
-        max = -(sys.maxsize - 1)
+        max_val = -(sys.float_info.max - 1)
         max_key = None  # label name
 
         # find max score
         for key, value in self.label_dict.items():  # for each {class name: class index}
             score = self.compute_score(x_vec, self.weight_matrix[value])  # each class weight vector
-            if score > max:
-                max = score
+            if score > max_val:
+                max_val = score
                 max_key = key
 
         return max_key
@@ -111,12 +111,12 @@ class Model:
         """
         data_point = self.data_points_list[input_index]
         pred_label_index = self.label_dict[data_point.pred_label]
-        weight_vec = self.weight_matrix[pred_label_index]
+        weight_vec = self.weight_matrix[pred_label_index]  # weight associated with predicted label
         feature_vec = self.input_matrix[input_index]
 
         numerator = math.exp(self.compute_score(weight_vec, feature_vec))
         denominator = 0
-        for i in range(0, self.OUTPUT_DIM - 1):
+        for i in range(0, self.OUTPUT_DIM):  # normalize over all weights for that input feature vector
             w_vec = self.weight_matrix[i]
             score = self.compute_score(w_vec, feature_vec)
             denominator += math.exp(score)
@@ -127,6 +127,33 @@ class Model:
             print('input_i: %d , denom: %d' % (input_index, denominator))
 
         return quotient
+
+    def log_of_maximum_entropy(self, input_index):
+        """
+        Instead of calculating maximum entropy directly, take the log of both sides. Now we get on right-hand side:
+        score(weight_vec, feature_vec) - PRODUCT
+        :param input_index:
+        :return:
+        """
+        data_point = self.data_points_list[input_index]
+        pred_label_index = self.label_dict[data_point.pred_label]
+        weight_vec = self.weight_matrix[pred_label_index]  # weight associated with predicted label
+        feature_vec = self.input_matrix[input_index]
+
+        sum = 0
+        for i in range(0, self.OUTPUT_DIM):  # for each class label weight vec
+            w_vec = self.weight_matrix[i]
+            # score = self.compute_score(w_vec, feature_vec)
+            sum += np.exp(w_vec)
+        sum = self.compute_score(sum, feature_vec)
+
+        try:  # TODO DEBUG sum = 0
+            log_sum = math.log(sum)
+        except ValueError:
+            print('problem at i: %d' % input_index)
+            exit(1)
+
+        return self.compute_score(weight_vec, feature_vec) - log_sum
 
     def compute_gradient(self):
         """
@@ -141,13 +168,20 @@ class Model:
         # compute expectation quantity from what the model predicts (using predicted labels)
         for i, data_point in enumerate(self.data_points_list):
             feature_vec = self.input_matrix[i]
-            max_ent = self.maximum_entropy(i)
+            #max_ent = self.maximum_entropy(i)
+
+            log_max_ent = self.log_of_maximum_entropy(i)
+            try:
+                max_ent = math.exp(log_max_ent)
+            except OverflowError:
+                print('problem at i = %d' % (i))
+                exit(1)
 
             right_sum = np.add(right_sum, max_ent * feature_vec)
 
         left_sum = np.zeros((1, self.FEATURE_DIM))
         # compute total feature count over examples with true y class
-        for i in range(0, self.OUTPUT_DIM - 1):  # for each partial gradient (i.e. weight vector)
+        for i in range(0, self.OUTPUT_DIM):  # for each partial gradient (i.e. weight vector)
             for j, data_point in enumerate(self.data_points_list):  # for each input
                 feature_vec = self.input_matrix[j]
                 true_label_index = self.label_dict[data_point.true_label]
@@ -168,13 +202,13 @@ class Model:
         lr_0 = config.Config.learning_rate
         lr = lr_0
         t = 0
-        diff = sys.maxsize
+        diff = 0
 
         while t == 0 or diff > epsilon:
-            print("%d: %f" % (t, diff))
+            print("%d: %s" % (t, diff))
             # for plotting use
-            self.plot_data_x.append(t)
-            self.plot_data_y.append(self.objective_function())
+            #self.plot_data_x.append(t)
+            #self.plot_data_y.append(self.objective_function())
 
             t += 1
             prev_weights = self.weight_matrix

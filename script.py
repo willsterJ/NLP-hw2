@@ -21,5 +21,5 @@ for i, data_point in enumerate(model.data_points_list):
 
 model.compute_accuracy()
 
-model.plot_objective_function()
-plt.show()
+#model.plot_objective_function()
+#plt.show()
