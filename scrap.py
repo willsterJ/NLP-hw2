@@ -1,4 +1,5 @@
 import numpy as np
+import math
 
 x = np.zeros((2,2))
 
@@ -8,6 +9,13 @@ v = x[0]
 v[0] = 5
 
 print(x)
+
+print(math.log(math.exp(2)))
+
+x = .0000001
+y = '%.2E' % x
+
+print(y)
 
 
 def get_column_to_feature_index(self, in_index, label):
