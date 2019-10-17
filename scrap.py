@@ -18,6 +18,10 @@ y = '%.2E' % x
 print(y)
 
 
+x = -2.3e72 + 10
+print(math.exp(x))
+
+
 def get_column_to_feature_index(self, in_index, label):
     # DEPRECATED
     """

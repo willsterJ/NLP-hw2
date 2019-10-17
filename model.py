@@ -63,17 +63,17 @@ class Model:
         self.input_matrix = input_matrix
 
         np.random.seed(0)
-        self.weight_matrix = np.random.randint(low=1, high=5, size=(self.OUTPUT_DIM, self.FEATURE_DIM)).astype("double")
+        self.weight_matrix = np.random.randint(low=0, high=5, size=(self.OUTPUT_DIM, self.FEATURE_DIM)).astype("double")
 
         return input_matrix
 
     def compute_score(self, x_vec, w_vec):
-        '''
+        """
         computes the dot product between a weight vec and an input vec
         :param x_vec:
         :param w_vec:
         :return:
-        '''
+        """
         return np.dot(w_vec.transpose(), x_vec).astype(np.double)
 
     def compute_all_predicted_labels(self):
@@ -96,7 +96,7 @@ class Model:
 
         # find max score
         for key, value in self.label_dict.items():  # for each {class name: class index}
-            score = self.compute_score(x_vec, self.weight_matrix[value])  # each class weight vector
+            score = self.compute_score(self.weight_matrix[value], x_vec)  # each class weight vector
             if score > max_val:
                 max_val = score
                 max_key = key
@@ -168,15 +168,15 @@ class Model:
         # compute expectation quantity from what the model predicts (using predicted labels)
         for i, data_point in enumerate(self.data_points_list):
             feature_vec = self.input_matrix[i]
-            #max_ent = self.maximum_entropy(i)
-
+            max_ent = self.maximum_entropy(i)
+            '''
             log_max_ent = self.log_of_maximum_entropy(i)
             try:
                 max_ent = math.exp(log_max_ent)
             except OverflowError:
                 print('problem at i = %d' % (i))
                 exit(1)
-
+            '''
             right_sum = np.add(right_sum, max_ent * feature_vec)
 
         left_sum = np.zeros((1, self.FEATURE_DIM))
@@ -243,7 +243,7 @@ class Model:
             label_index = self.label_dict[data_point.true_label]
             weight_vec = self.weight_matrix[label_index]
 
-            score = self.compute_score(feature_vec, weight_vec)
+            score = self.compute_score(weight_vec, feature_vec)
             numerator = math.exp(score)
 
             # TODO DEBUG: numerical underflow...
