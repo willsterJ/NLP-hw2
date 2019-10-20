@@ -60,12 +60,25 @@ class Model:
                 index_of_feature = self.feature_dict[key1]  # get associated column index from global feature
                 data_point.features_vec[index_of_feature] = value1
 
+        # self.input_matrix = self.normalize_inputs(input_matrix)
         self.input_matrix = input_matrix
 
         np.random.seed(0)
         self.weight_matrix = np.random.randint(low=0, high=5, size=(self.OUTPUT_DIM, self.FEATURE_DIM)).astype("double")
-
+        # self.weight_matrix = np.random.rand(self.OUTPUT_DIM, self.FEATURE_DIM)
         return input_matrix
+
+    def normalize_inputs(self, input_matrix):
+        matrix = input_matrix
+        [row_dim, col_dim] = matrix.shape
+        for j in range(0, col_dim):
+            feature_sum = 0
+            for i in range(row_dim):
+                feature_sum += matrix[i][j]
+            mean = feature_sum / row_dim
+            for i in range(row_dim):
+                matrix[i][j] = (matrix[i][j] - mean) / row_dim
+        return matrix
 
     def compute_score(self, x_vec, w_vec):
         """
@@ -103,15 +116,16 @@ class Model:
 
         return max_key
 
-    def maximum_entropy(self, input_index):
+    def maximum_entropy(self, input_index, partial_index):
         """
         Find the maximum entropy of a input data given its index
         :param input_index
         :return:
         """
         data_point = self.data_points_list[input_index]
-        pred_label_index = self.label_dict[data_point.pred_label]
-        weight_vec = self.weight_matrix[pred_label_index]  # weight associated with predicted label
+        # pred_label_index = self.label_dict[data_point.pred_label]
+        # true_label_index = self.label_dict[data_point.true_label]
+        weight_vec = self.weight_matrix[partial_index]  # weight associated with predicted label
         feature_vec = self.input_matrix[input_index]
 
         numerator = math.exp(self.compute_score(weight_vec, feature_vec))
@@ -119,7 +133,8 @@ class Model:
         for i in range(0, self.OUTPUT_DIM):  # normalize over all weights for that input feature vector
             w_vec = self.weight_matrix[i]
             score = self.compute_score(w_vec, feature_vec)
-            denominator += math.exp(score)
+            val = math.exp(score)
+            denominator += val
 
         try:
             quotient = numerator / denominator
@@ -137,25 +152,25 @@ class Model:
         self.compute_all_predicted_labels()  # update all predicted labels
         partial_gradients = np.zeros((self.OUTPUT_DIM, self.FEATURE_DIM))
 
-        right_sum = np.zeros((1, self.FEATURE_DIM))
-        # compute expectation quantity from what the model predicts (using predicted labels)
-        for i, data_point in enumerate(self.data_points_list):
-            feature_vec = self.input_matrix[i]
-            max_ent = self.maximum_entropy(i)
-
-            right_sum = np.add(right_sum, max_ent * feature_vec)
-
         left_sum = np.zeros((1, self.FEATURE_DIM))
+        right_sum = np.zeros((1, self.FEATURE_DIM))
         # compute total feature count over examples with true y class
-        for i in range(0, self.OUTPUT_DIM):  # for each partial gradient (i.e. weight vector)
+        for class_index in range(0, self.OUTPUT_DIM):  # for each partial gradient (i.e. weight vector)
+            # compute expectation quantity from what the model predicts (using predicted labels)
+            for input_index, data_point in enumerate(self.data_points_list):
+                feature_vec = self.input_matrix[input_index]
+                max_ent = self.maximum_entropy(input_index, class_index)
+
+                right_sum = np.add(right_sum, max_ent * feature_vec)
+
             for j, data_point in enumerate(self.data_points_list):  # for each input
                 feature_vec = self.input_matrix[j]
                 true_label_index = self.label_dict[data_point.true_label]
 
-                if true_label_index == i:  # if derivative w.r.t current class is the same as true class of input
+                if true_label_index == class_index:  # if derivative w.r.t current class is the same as true class of input
                     left_sum = np.add(left_sum, feature_vec)
 
-            partial_gradients[i] = left_sum - right_sum - (2 * self.lamb * self.weight_matrix[i])
+            partial_gradients[class_index] = left_sum - right_sum - (2 * self.lamb * self.weight_matrix[class_index])
 
         return partial_gradients
 
