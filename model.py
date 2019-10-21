@@ -60,8 +60,8 @@ class Model:
                 index_of_feature = self.feature_dict[key1]  # get associated column index from global feature
                 data_point.features_vec[index_of_feature] = value1
 
-        # self.input_matrix = self.normalize_inputs(input_matrix)
-        self.input_matrix = input_matrix
+        self.input_matrix = self.normalize_inputs(input_matrix)
+        # self.input_matrix = input_matrix
 
         np.random.seed(0)
         self.weight_matrix = np.random.randint(low=0, high=5, size=(self.OUTPUT_DIM, self.FEATURE_DIM)).astype("double")
@@ -80,7 +80,7 @@ class Model:
                 matrix[i][j] = (matrix[i][j] - mean) / row_dim
         return matrix
 
-    def compute_score(self, x_vec, w_vec):
+    def compute_score(self, w_vec, x_vec):
         """
         computes the dot product between a weight vec and an input vec
         :param x_vec:
@@ -88,33 +88,6 @@ class Model:
         :return:
         """
         return np.dot(w_vec.transpose(), x_vec).astype(np.double)
-
-    def compute_all_predicted_labels(self):
-        """
-        computes and updates predicted labels for each input
-        :return:
-        """
-        for i, data_point in enumerate(self.data_points_list):
-            data_point.pred_label = self.update_predicted_label_from_index(i)
-
-    def update_predicted_label_from_index(self, input_index):
-        """
-        From input data index, update its associated predicted label
-        :param input_index:
-        :return:
-        """
-        x_vec = self.input_matrix[input_index]
-        max_val = -(sys.float_info.max - 1)
-        max_key = None  # label name
-
-        # find max score
-        for key, value in self.label_dict.items():  # for each {class name: class index}
-            score = self.compute_score(self.weight_matrix[value], x_vec)  # each class weight vector
-            if score > max_val:
-                max_val = score
-                max_key = key
-
-        return max_key
 
     def maximum_entropy(self, input_index, partial_index):
         """
@@ -149,7 +122,6 @@ class Model:
         partial derivative
         :return:
         """
-        self.compute_all_predicted_labels()  # update all predicted labels
         partial_gradients = np.zeros((self.OUTPUT_DIM, self.FEATURE_DIM))
 
         left_sum = np.zeros((1, self.FEATURE_DIM))
@@ -188,8 +160,8 @@ class Model:
         while t == 0 or diff > epsilon:
             print("%d: %s" % (t, diff))
             # for plotting use
-            #self.plot_data_x.append(t)
-            #self.plot_data_y.append(self.objective_function())
+            self.plot_data_x.append(t)
+            self.plot_data_y.append(self.objective_function())
 
             t += 1
             prev_weights = self.weight_matrix
@@ -200,6 +172,11 @@ class Model:
             self.weight_matrix = curr_weights
 
     def compute_accuracy(self):
+        self.compute_all_predicted_labels()  # update all predicted labels
+
+        for i, data_point in enumerate(self.data_points_list):
+            print("true: %s, pred: %s" % (data_point.true_label, data_point.pred_label))
+
         count = 0
         for i, data_point in enumerate(self.data_points_list):
             if data_point.pred_label == data_point.true_label:
@@ -207,18 +184,40 @@ class Model:
 
         print("Accuracy: %f" %(count / len(self.data_points_list)))
 
+    def compute_all_predicted_labels(self):
+        """
+        computes and updates predicted labels for each input
+        :return:
+        """
+        for i, data_point in enumerate(self.data_points_list):
+            data_point.pred_label = self.update_predicted_label_from_index(i)
+
+    def update_predicted_label_from_index(self, input_index):
+        """
+        From input data index, update its associated predicted label
+        :param input_index:
+        :return:
+        """
+        x_vec = self.input_matrix[input_index]
+        max_val = -(sys.float_info.max - 1)
+        max_key = None  # label name
+
+        # find max score
+        for key, value in self.label_dict.items():  # for each {class name: class index}
+            score = self.compute_score(self.weight_matrix[value], x_vec)  # each class weight vector
+            if score > max_val:
+                max_val = score
+                max_key = key
+
+        return max_key
+
     def objective_function(self):
         """
         compute the objective function of the model
         :return:
         """
-        denominator = self.objective_function_denominator_sum()
-
         obj_func = 0
         for i, data_point in enumerate(self.data_points_list):  # for each row of input matrix
-
-            #if i == 2279:
-            #    print('hwere')
 
             feature_vec = self.input_matrix[i]
             label_index = self.label_dict[data_point.true_label]
@@ -227,27 +226,16 @@ class Model:
             score = self.compute_score(weight_vec, feature_vec)
             numerator = math.exp(score)
 
-            # TODO DEBUG: numerical underflow...
+            denominator = 0
+            for j in range(0, self.OUTPUT_DIM):
+                w_vec = self.weight_matrix[j]
+                denominator += math.exp(self.compute_score(w_vec, feature_vec))
 
             quotient = numerator / denominator
-            if (quotient <= 0):
-                quotient = 1e-20
 
-            try:
-                obj_func += math.log(quotient)
-            except ValueError:
-                print("i: %d" %i)
+            obj_func += math.log(quotient)
 
         return obj_func
-
-    def objective_function_denominator_sum(self):
-        d_sum = 0
-        for i, data_point in enumerate(self.data_points_list):
-            feature_vec = self.input_matrix[i]
-            weight_vec = self.weight_matrix[self.label_dict[data_point.true_label]]
-            d_sum += math.exp(self.compute_score(feature_vec, weight_vec))
-
-        return d_sum
 
     def regularization(self, obj_func, weights_mat, lamb):
         norm = np.linalg.norm(weights_mat)
@@ -255,7 +243,12 @@ class Model:
         return obj_func - (lamb * (norm ** 2))
 
     def plot_objective_function(self):
+        fig = plt.figure()
+        plt.title("Unigram")
+        plt.xlabel("t")
+        plt.ylabel("L")
         plt.plot(self.plot_data_x, self.plot_data_y)
+        plt.show()
 
 
 

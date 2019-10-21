@@ -16,10 +16,7 @@ print(test_point.true_label)
 
 model.gradient_ascent()
 
-for i, data_point in enumerate(model.data_points_list):
-    print("true: %s, pred: %s" %(data_point.true_label, data_point.pred_label))
 
 model.compute_accuracy()
 
-#model.plot_objective_function()
-#plt.show()
+model.plot_objective_function()
