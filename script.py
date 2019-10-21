@@ -19,4 +19,4 @@ model.gradient_ascent()
 
 model.compute_accuracy()
 
-model.plot_objective_function()
+#model.plot_objective_function()

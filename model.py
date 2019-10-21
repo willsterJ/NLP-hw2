@@ -77,7 +77,7 @@ class Model:
                 feature_sum += matrix[i][j]
             mean = feature_sum / row_dim
             for i in range(row_dim):
-                matrix[i][j] = (matrix[i][j] - mean) / row_dim
+                matrix[i][j] = (matrix[i][j] - mean)
         return matrix
 
     def compute_score(self, w_vec, x_vec):
@@ -160,8 +160,8 @@ class Model:
         while t == 0 or diff > epsilon:
             print("%d: %s" % (t, diff))
             # for plotting use
-            self.plot_data_x.append(t)
-            self.plot_data_y.append(self.objective_function())
+            #self.plot_data_x.append(t)
+            #self.plot_data_y.append(self.objective_function())
 
             t += 1
             prev_weights = self.weight_matrix
