@@ -21,7 +21,14 @@ class Unigram(Model):
         input_list = []  # list of dict of chars stores the char features per input and corresponding output
 
         # parse each character into a set
+
+        count = 0  # TODO debug
+
         for item in data:
+            count += 1
+            if count > 10000:
+                break
+
             input = str(item[1])
             input = re.sub(r'[^\w]', '', input)  # remove spaces
             input_l = list(input)

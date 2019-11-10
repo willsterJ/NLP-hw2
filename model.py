@@ -1,9 +1,4 @@
-from abc import ABC, abstractmethod
-from typing import Any, Union
-
-import load_data
 import config
-import re
 import numpy as np
 import math
 import sys
@@ -60,25 +55,12 @@ class Model:
                 index_of_feature = self.feature_dict[key1]  # get associated column index from global feature
                 data_point.features_vec[index_of_feature] = value1
 
-        self.input_matrix = self.normalize_inputs(input_matrix)
-        # self.input_matrix = input_matrix
+        self.input_matrix = input_matrix
 
         np.random.seed(0)
-        self.weight_matrix = np.random.randint(low=0, high=5, size=(self.OUTPUT_DIM, self.FEATURE_DIM)).astype("double")
-        # self.weight_matrix = np.random.rand(self.OUTPUT_DIM, self.FEATURE_DIM)
+        #self.weight_matrix = np.random.randint(low=0, high=5, size=(self.OUTPUT_DIM, self.FEATURE_DIM)).astype("double")
+        self.weight_matrix = np.random.rand(self.OUTPUT_DIM, self.FEATURE_DIM)
         return input_matrix
-
-    def normalize_inputs(self, input_matrix):
-        matrix = input_matrix
-        [row_dim, col_dim] = matrix.shape
-        for j in range(0, col_dim):
-            feature_sum = 0
-            for i in range(row_dim):
-                feature_sum += matrix[i][j]
-            mean = feature_sum / row_dim
-            for i in range(row_dim):
-                matrix[i][j] = (matrix[i][j] - mean)
-        return matrix
 
     def compute_score(self, w_vec, x_vec):
         """
@@ -95,9 +77,6 @@ class Model:
         :param input_index
         :return:
         """
-        data_point = self.data_points_list[input_index]
-        # pred_label_index = self.label_dict[data_point.pred_label]
-        # true_label_index = self.label_dict[data_point.true_label]
         weight_vec = self.weight_matrix[partial_index]  # weight associated with predicted label
         feature_vec = self.input_matrix[input_index]
 
@@ -166,7 +145,7 @@ class Model:
             t += 1
             prev_weights = self.weight_matrix
             curr_weights = np.add(prev_weights, (lr * self.compute_gradient()))
-            lr = lr_0 / math.sqrt(t)
+            lr = lr_0 / (self.INPUT_DIM * math.sqrt(t))
             diff = np.linalg.norm(np.subtract(curr_weights, prev_weights))
 
             self.weight_matrix = curr_weights
