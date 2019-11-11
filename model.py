@@ -66,20 +66,11 @@ class Model:
         """
         computes the dot product between a weight vec and an input vec
         """
-        '''
-        sum = 0
-        for i in range(0,len(w_vec)):
-            sum += (w_vec[i] * x_vec[i])
-
-        return sum
-        '''
         return np.dot(w_vec.transpose(), x_vec).astype(np.double)
 
     def maximum_entropy(self, input_index, partial_index):
         """
         Find the maximum entropy of a input data given its index
-        :param input_index
-        :return:
         """
         weight_vec = self.weight_matrix[partial_index]  # weight associated with predicted label
         feature_vec = self.input_matrix[input_index]
@@ -97,7 +88,7 @@ class Model:
             denominator += val
 
         try:
-            quotient = numerator / denominator
+            quotient = numerator / float(denominator)
         except ValueError:
             print('input_i: %d , denom: %d' % (input_index, denominator))
         except RuntimeWarning:
@@ -158,7 +149,7 @@ class Model:
             t += 1
             prev_weights = self.weight_matrix
             curr_weights = np.add(prev_weights, (lr * self.compute_gradient()))
-            lr = lr_0 / (self.INPUT_DIM * math.sqrt(t))
+            lr = lr_0 / float(self.INPUT_DIM * math.sqrt(t))
             diff = np.linalg.norm(np.subtract(curr_weights, prev_weights))
 
             self.weight_matrix = curr_weights
