@@ -1,5 +1,6 @@
 import numpy as np
 import math
+import re
 
 x = np.zeros((2, 2))
 
@@ -19,6 +20,19 @@ print(y)
 
 x = -2.3e72 + 10
 print(math.exp(x))
+
+s = "Hexylllo therexl llc"
+z = re.search(".*llc$", s)
+if z:
+    print(z)
+
+dicto = {"king"}
+if "king" in dicto:
+    print("'s")
+
+if "xy" in s:
+    print("yes")
+
 
 
 def get_column_to_feature_index(self, in_index, label):

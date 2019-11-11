@@ -65,10 +65,14 @@ class Model:
     def compute_score(self, w_vec, x_vec):
         """
         computes the dot product between a weight vec and an input vec
-        :param x_vec:
-        :param w_vec:
-        :return:
         """
+        '''
+        sum = 0
+        for i in range(0,len(w_vec)):
+            sum += (w_vec[i] * x_vec[i])
+
+        return sum
+        '''
         return np.dot(w_vec.transpose(), x_vec).astype(np.double)
 
     def maximum_entropy(self, input_index, partial_index):
@@ -80,11 +84,15 @@ class Model:
         weight_vec = self.weight_matrix[partial_index]  # weight associated with predicted label
         feature_vec = self.input_matrix[input_index]
 
+        # TODO debug overflow
         numerator = math.exp(self.compute_score(weight_vec, feature_vec))
+        # numerator = np.exp(self.compute_score(weight_vec, feature_vec), dtype=np.float64)
+
         denominator = 0
         for i in range(0, self.OUTPUT_DIM):  # normalize over all weights for that input feature vector
             w_vec = self.weight_matrix[i]
             score = self.compute_score(w_vec, feature_vec)
+            # val = np.exp(score, dtype=np.float64)
             val = math.exp(score)
             denominator += val
 
@@ -92,6 +100,8 @@ class Model:
             quotient = numerator / denominator
         except ValueError:
             print('input_i: %d , denom: %d' % (input_index, denominator))
+        except RuntimeWarning:
+            exit(1)
 
         return quotient
 
@@ -106,22 +116,25 @@ class Model:
         left_sum = np.zeros((1, self.FEATURE_DIM))
         right_sum = np.zeros((1, self.FEATURE_DIM))
         # compute total feature count over examples with true y class
-        for class_index in range(0, self.OUTPUT_DIM):  # for each partial gradient (i.e. weight vector)
+        for partial_index in range(0, self.OUTPUT_DIM):  # for each partial gradient (i.e. weight vector)
             # compute expectation quantity from what the model predicts (using predicted labels)
             for input_index, data_point in enumerate(self.data_points_list):
                 feature_vec = self.input_matrix[input_index]
-                max_ent = self.maximum_entropy(input_index, class_index)
+                max_ent = self.maximum_entropy(input_index, partial_index)
 
                 right_sum = np.add(right_sum, max_ent * feature_vec)
 
-            for j, data_point in enumerate(self.data_points_list):  # for each input
-                feature_vec = self.input_matrix[j]
+            for input_index, data_point in enumerate(self.data_points_list):  # for each input
+                feature_vec = self.input_matrix[input_index]
                 true_label_index = self.label_dict[data_point.true_label]
 
-                if true_label_index == class_index:  # if derivative w.r.t current class is the same as true class of input
+                if true_label_index == partial_index:  # if derivative w.r.t current class is the same as true class of input
                     left_sum = np.add(left_sum, feature_vec)
 
-            partial_gradients[class_index] = left_sum - right_sum - (2 * self.lamb * self.weight_matrix[class_index])
+            #right_sum = (1/self.INPUT_DIM) * right_sum
+            #left_sum = (1 / self.INPUT_DIM) * left_sum
+            partial_gradients[partial_index] = left_sum - right_sum - (2 * self.lamb * self.weight_matrix[partial_index])
+            #partial_gradients = (1/self.INPUT_DIM) * partial_gradients
 
         return partial_gradients
 
@@ -137,10 +150,10 @@ class Model:
         diff = 0
 
         while t == 0 or diff > epsilon:
-            print("%d: %s" % (t, diff))
             # for plotting use
+            print("%d: %s" % (t, diff))
             #self.plot_data_x.append(t)
-            #self.plot_data_y.append(self.objective_function())
+            #self.plot_data_y.append(obj)
 
             t += 1
             prev_weights = self.weight_matrix
@@ -212,7 +225,11 @@ class Model:
 
             quotient = numerator / denominator
 
-            obj_func += math.log(quotient)
+            try:
+                obj_func += math.log(quotient)
+            except ValueError:
+                print("input: %d, numerator: %d, denom: %d" % (i, numerator, denominator))
+                exit(1)
 
         return obj_func
 

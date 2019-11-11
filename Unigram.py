@@ -25,8 +25,8 @@ class Unigram(Model):
         count = 0  # TODO debug
 
         for item in data:
-            count += 1
-            if count > 10000:
+            #count += 1
+            if count > 7000:
                 break
 
             input = str(item[1])
