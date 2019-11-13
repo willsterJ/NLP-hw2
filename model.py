@@ -59,7 +59,8 @@ class Model:
 
         np.random.seed(0)
         #self.weight_matrix = np.random.randint(low=0, high=5, size=(self.OUTPUT_DIM, self.FEATURE_DIM)).astype("double")
-        self.weight_matrix = np.random.rand(self.OUTPUT_DIM, self.FEATURE_DIM)
+        # self.weight_matrix = np.random.rand(self.OUTPUT_DIM, self.FEATURE_DIM)
+        self.weight_matrix = np.zeros((self.OUTPUT_DIM, self.FEATURE_DIM), dtype=float)
         return input_matrix
 
     def compute_score(self, w_vec, x_vec):
@@ -127,6 +128,15 @@ class Model:
             partial_gradients[partial_index] = left_sum - right_sum - (2 * self.lamb * self.weight_matrix[partial_index])
             #partial_gradients = (1/self.INPUT_DIM) * partial_gradients
 
+        partial_gradients = partial_gradients / self.INPUT_DIM
+
+        #TODO debug
+        for i in range(0, self.OUTPUT_DIM):
+            #print(partial_gradients[i])
+            max = np.max(np.array(partial_gradients[i]))
+            min = np.min(np.array(partial_gradients[i]))
+            print("\t w_%d: max=%f, min=%f" % (i, max, min))
+
         return partial_gradients
 
     def gradient_ascent(self):
@@ -149,16 +159,22 @@ class Model:
             t += 1
             prev_weights = self.weight_matrix
             curr_weights = np.add(prev_weights, (lr * self.compute_gradient()))
-            lr = lr_0 / float(self.INPUT_DIM * math.sqrt(t))
+            lr = lr_0 #/ (self.INPUT_DIM) # * math.sqrt(t))
             diff = np.linalg.norm(np.subtract(curr_weights, prev_weights))
+            #print("%d: %s" % (t, diff))
 
             self.weight_matrix = curr_weights
+
+            self.compute_accuracy()
+            print("obj: %f" % self.objective_function())
 
     def compute_accuracy(self):
         self.compute_all_predicted_labels()  # update all predicted labels
 
+        '''
         for i, data_point in enumerate(self.data_points_list):
             print("true: %s, pred: %s" % (data_point.true_label, data_point.pred_label))
+        '''
 
         count = 0
         for i, data_point in enumerate(self.data_points_list):
@@ -202,6 +218,9 @@ class Model:
         obj_func = 0
         for i, data_point in enumerate(self.data_points_list):  # for each row of input matrix
 
+            if i == 101:
+                print("")
+
             feature_vec = self.input_matrix[i]
             label_index = self.label_dict[data_point.true_label]
             weight_vec = self.weight_matrix[label_index]
@@ -214,15 +233,15 @@ class Model:
                 w_vec = self.weight_matrix[j]
                 denominator += math.exp(self.compute_score(w_vec, feature_vec))
 
-            quotient = numerator / denominator
+            quotient = numerator / float(denominator)
 
             try:
                 obj_func += math.log(quotient)
             except ValueError:
-                print("input: %d, numerator: %d, denom: %d" % (i, numerator, denominator))
+                print("input: %d, numerator: %f, denom: %f" % (i, numerator, denominator))
                 exit(1)
 
-        return obj_func
+        return float(obj_func)
 
     def regularization(self, obj_func, weights_mat, lamb):
         norm = np.linalg.norm(weights_mat)

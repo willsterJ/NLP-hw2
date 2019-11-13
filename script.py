@@ -8,9 +8,9 @@ import matplotlib.pyplot as plt
 
 data = LoadData()
 data = data.read_file(config.Config.train_data)
-# model = Unigram(data)
+model = Unigram(data)
 # model = BiTrigram(data)
-model = CustomModel(data)
+# model = CustomModel(data)
 model.find_features_and_labels()
 input_matrix = model.generate_input_matrix()
 
