@@ -8,3 +8,4 @@ class Config:
     lamb = .01
     epsilon = 0.00005
     learning_rate = 0.5
+    num_threads = 8

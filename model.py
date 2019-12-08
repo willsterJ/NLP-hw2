@@ -158,7 +158,7 @@ class Model:
         right_sum = np.zeros((1, self.FEATURE_DIM))
 
         # set up multi-threading
-        num_threads = 20
+        num_threads = config.Config.num_threads
         threads = [None] * num_threads
         left_result = {}  # shared dict for all threads
         right_result = {}
@@ -172,13 +172,7 @@ class Model:
             # initialize threads
             for i in range(num_threads):
                 # set up start and ending indices for each thread's access to input matrix
-                step = len(self.input_matrix) // num_threads
-                remainder = len(self.input_matrix) % num_threads
-                start_ind = step * i
-                if i == num_threads - 1:  # if last thread, give it remainder
-                    end_ind = start_ind + step + remainder
-                else:
-                    end_ind = start_ind + step
+                [start_ind, end_ind] = self.threading_find_start_end_index(i, len(self.input_matrix), num_threads)
                 threads[i] = threading.Thread(target=self.compute_gradient_threading,
                                               args=(partial_index, start_ind, end_ind, left_result, right_result),
                                               name=str(i))
@@ -217,6 +211,7 @@ class Model:
         # update result
         right_result[thread_id] = right_acc
         left_result[thread_id] = left_acc
+
     def gradient_ascent(self):
         """
         Gradient ascent routine
@@ -230,7 +225,7 @@ class Model:
 
         start_time = time.time()
 
-        while t == 0 or diff > epsilon or t <= 1000:
+        while t == 0 or diff > epsilon and t <= 1000:
 
             t += 1
             prev_weights = self.weight_matrix
@@ -240,7 +235,7 @@ class Model:
 
             self.weight_matrix = curr_weights
 
-            obj = self.objective_function()
+            obj = self.objective_function_helper()
             #training_accuracy = self.compute_accuracy(self.data_points_list, self.input_matrix)
             validation_accuracy = self.compute_accuracy(self.valid_data_points_list, self.valid_matrix)
             # for plotting use
@@ -254,7 +249,13 @@ class Model:
         print('total time = ' + str(start_time - end_time))
 
     def compute_accuracy(self, data_points_list, matrix):
-        self.compute_all_predicted_labels(data_points_list, matrix)  # update all predicted labels
+        threads = [None] * config.Config.num_threads
+
+        for i in range(len(threads)):
+            [start_ind, end_ind] = self.threading_find_start_end_index(i, len(data_points_list), len(threads))
+            threads[i] = threading.Thread(target=self.compute_all_predicted_labels(data_points_list, matrix, start_ind, end_ind))
+            threads[i].start()
+            threads[i].join()
 
         count = 0
         for i, data_point in enumerate(data_points_list):
@@ -263,13 +264,13 @@ class Model:
 
         return count / len(data_points_list)
 
-    def compute_all_predicted_labels(self, data_points_list, matrix):
+    def compute_all_predicted_labels(self, data_points_list, matrix, start_ind, end_ind):
         """
         computes and updates predicted labels for each input
         :return:
         """
-        for i, data_point in enumerate(data_points_list):
-            data_point.pred_label_index = self.update_predicted_label_from_index(i, matrix)
+        for i in range(start_ind, end_ind):
+            data_points_list[i].pred_label_index = self.update_predicted_label_from_index(i, matrix)
 
     def update_predicted_label_from_index(self, input_index, matrix):
         """
@@ -283,16 +284,32 @@ class Model:
         max_ind = np.argmax(output_vect)
         return max_ind
 
-    def objective_function(self):
+    def objective_function_helper(self):
+        threads = [None] * config.Config.num_threads
+        obj_sums = {}
+
+        for i in range(len(threads)):
+            [start_ind, end_ind] = self.threading_find_start_end_index(i, len(self.input_matrix), len(threads))
+            obj_sums[i] = 0
+            threads[i] = threading.Thread(target=self.objective_function,
+                                          args=(start_ind, end_ind, obj_sums), name=str(i))
+            threads[i].start()
+            threads[i].join()
+
+        obj_sum = 0
+        for sum in obj_sums:
+            obj_sum += sum
+
+        return obj_sum
+
+    def objective_function(self, start_ind, end_ind, obj_sums):
         """
         compute the objective function of the model
         :return:
         """
-        obj_func = 0
-        for i, data_point in enumerate(self.data_points_list):  # for each row of input matrix
+        for i in range(start_ind, end_ind):  # for each row of input matrix
             feature_vec = self.input_matrix[i]
-            #label_index = self.label_dict[data_point.true_label]
-            label_index = data_point.true_label_index
+            label_index = self.data_points_list[i].true_label_index
             weight_vec = self.weight_matrix[label_index]
 
             score = self.compute_score(weight_vec, feature_vec)
@@ -306,12 +323,10 @@ class Model:
             quotient = numerator / float(denominator)
 
             try:
-                obj_func += math.log(quotient)
+                obj_sums[int(threading.current_thread().name)] += math.log(quotient)
             except ValueError:
                 print("input: %d, numerator: %f, denom: %f" % (i, numerator, denominator))
                 exit(1)
-
-        return float(obj_func)
 
     def regularization(self, obj_func, weights_mat, lamb):
         norm = np.linalg.norm(weights_mat)
@@ -320,7 +335,7 @@ class Model:
 
     def plot_objective_function(self, name):
         fig = plt.figure()
-        plt.title("BigramTrigram")
+        plt.title(name)
         plt.xlabel("t")
         plt.ylabel("L")
         plt.plot(self.plot_data_x, self.plot_data_y)
@@ -329,5 +344,14 @@ class Model:
         else:
             plt.savefig("./output/%s.png" % name)
 
+    def threading_find_start_end_index(self, i, size, num_threads):
+        step = size // num_threads
+        remainder = size % num_threads
+        start_ind = step * i
+        if i == num_threads - 1:  # if last thread, give it remainder
+            end_ind = start_ind + step + remainder
+        else:
+            end_ind = start_ind + step
+        return start_ind, end_ind
 
 
