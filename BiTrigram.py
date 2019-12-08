@@ -39,6 +39,9 @@ class BiTrigram(Model):
                         break
                     s = s + '' + input_list[i + j]
 
+                    if len(s) != 2:  # TODO debug
+                        continue
+
                     if s not in local_feat_dict:
                         local_feat_dict[s] = 1
                     else:
@@ -78,6 +81,9 @@ class BiTrigram(Model):
                     if input_list[j] == ' ':  # stop when whitespace encountered
                         break
                     s = s + '' + input_list[i + j]
+
+                    if len(s) != 2:  # TODO debug
+                        continue
 
                     if s not in local_feat_dict:
                         local_feat_dict[s] = 1

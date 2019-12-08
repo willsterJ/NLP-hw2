@@ -240,7 +240,7 @@ class Model:
             validation_accuracy = self.compute_accuracy(self.valid_data_points_list, self.valid_matrix)
             # for plotting use
             # print("%d: diff=%f, obj=%f, train_acc=%f, valid_acc=%f" % (t, diff, obj, training_accuracy, validation_accuracy))
-            print("%d: diff=%f, obj=%f, valid_acc=%f" % (t, diff, obj, validation_accuracy))
+            print("%d: diff=%f, obj=%f, valid_acc=%.16f" % (t, diff, obj, validation_accuracy))
 
             self.plot_data_x.append(t)
             self.plot_data_y.append(obj)
@@ -297,8 +297,8 @@ class Model:
             threads[i].join()
 
         obj_sum = 0
-        for sum in obj_sums:
-            obj_sum += sum
+        for i in range(config.Config.num_threads):
+            obj_sum += obj_sums[i]
 
         return obj_sum
 
