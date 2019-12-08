@@ -225,7 +225,7 @@ class Model:
 
         start_time = time.time()
 
-        while t == 0 or diff > epsilon and t <= 1000:
+        while t == 0 or diff > epsilon and t <= 500:
 
             t += 1
             prev_weights = self.weight_matrix

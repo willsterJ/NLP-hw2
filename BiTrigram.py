@@ -39,9 +39,6 @@ class BiTrigram(Model):
                         break
                     s = s + '' + input_list[i + j]
 
-                    if len(s) != 2:  # TODO debug
-                        continue
-
                     if s not in local_feat_dict:
                         local_feat_dict[s] = 1
                     else:
@@ -82,14 +79,13 @@ class BiTrigram(Model):
                         break
                     s = s + '' + input_list[i + j]
 
-                    if len(s) != 2:  # TODO debug
-                        continue
-
-                    if s not in local_feat_dict:
-                        local_feat_dict[s] = 1
-                    else:
-                        local_feat_dict[s] += 1
+                    if s in self.feature_dict:
+                        if s not in local_feat_dict:
+                            local_feat_dict[s] = 1
+                        else:
+                            local_feat_dict[s] += 1
 
             data_point = Data_Point()
             data_point.true_label_index = self.label_dict[label]
+            data_point.features_dict = local_feat_dict
             self.valid_data_points_list.append(data_point)
