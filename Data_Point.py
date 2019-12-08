@@ -2,7 +2,7 @@
 class Data_Point:
     def __init__(self):
         self.index = None
-        self.true_label = None
-        self.pred_label = None
-        self.features_dict = None
+        self.true_label_index = None
+        self.pred_label_index = None
+        self.features_dict = {}
         self.features_vec = None

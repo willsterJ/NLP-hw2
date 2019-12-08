@@ -2,20 +2,31 @@ import config
 import numpy as np
 import math
 import sys
+import os
+import matplotlib
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
+from Data_Point import Data_Point
+import time
+import threading
 
 
 # parent class
 class Model:
-    def __init__(self, data):
+    def __init__(self, data, valid_set, test_set):
         self.data = data  # numpy matrix [[label, name]]
+        self.valid_set = valid_set
+        self.test_set = test_set
         self.feature_dict = {}  # feature_name: feature_vec index
         self.label_dict = {}  # true_output: label_index
 
         self.data_points_list = []  # list of Data_Point
+        self.valid_data_points_list = []
+        self.test_data_points_list = []
 
         self.input_matrix = None  # dim: input size x (feature size * num of labels)
         self.weight_matrix = None  # dim: feature_size * num_labels
+        self.valid_matrix = None
         self.INPUT_DIM = 0
         self.FEATURE_DIM = 0
         self.OUTPUT_DIM = 0
@@ -29,13 +40,57 @@ class Model:
     def find_features_and_labels(self):  # subclass implemented function
         pass
 
+    def combine_features_from_models(self, model1, model2):
+        """
+        method that takes in 2 models and combines them into 1
+        """
+        # get data point's local features
+        data_point_list1 = model1.data_points_list
+        data_point_list2 = model2.data_points_list
+
+        # combine data point attributes
+        for i in range(0, len(data_point_list1)):
+            data_point = Data_Point()
+            local_features_1 = data_point_list1[i].features_dict
+            local_features_2 = data_point_list2[i].features_dict
+            for key1, val1 in local_features_1.items():
+                data_point.features_dict[key1] = val1
+            for key2, val2 in local_features_2.items():
+                if key2 not in data_point.features_dict:
+                    data_point.features_dict[key2] = val2
+
+            data_point.true_label_index = data_point_list1[i].true_label_index
+            data_point.index = i
+            self.data_points_list.append(data_point)
+
+        # combine feature to col map index
+        self.feature_dict = model1.feature_dict
+        col_size = len(model1.feature_dict)
+
+        add_col_ind = 0
+        for key2, val2 in model2.feature_dict.items():
+            if key2 not in self.feature_dict:
+                self.feature_dict[key2] = col_size + add_col_ind
+                add_col_ind += 1
+
+        # label should be the same
+        self.label_dict = model1.label_dict
+
+
     def generate_input_matrix(self):
         """
         Creates the design matrix using the feature and label data generated from subclass. Iterate over list of
         data_points and update their values. Also create a random weight matrix
-        :return:
         """
-        self.INPUT_DIM = len(self.data)
+        self.input_matrix = self.create_matrix(self.data_points_list)
+
+        np.random.seed(0)
+        self.weight_matrix = np.zeros((self.OUTPUT_DIM, self.FEATURE_DIM), dtype=float)
+
+        self.valid_matrix = self.create_matrix(self.valid_data_points_list)
+
+    def create_matrix(self, data_point_list,):
+        self.INPUT_DIM = len(data_point_list)
         row_dim = self.INPUT_DIM
         self.FEATURE_DIM = len(self.feature_dict)  # feature vect of classes. See class notes
         column_dim = self.FEATURE_DIM
@@ -46,7 +101,7 @@ class Model:
         print(self.label_dict)
         print(input_matrix.shape)
 
-        for i, data_point in enumerate(self.data_points_list):  # for each input data
+        for i, data_point in enumerate(data_point_list):  # for each input data
             data_point.index = i
             data_point.features_vec = input_matrix[i]
             features = data_point.features_dict
@@ -55,12 +110,6 @@ class Model:
                 index_of_feature = self.feature_dict[key1]  # get associated column index from global feature
                 data_point.features_vec[index_of_feature] = value1
 
-        self.input_matrix = input_matrix
-
-        np.random.seed(0)
-        #self.weight_matrix = np.random.randint(low=0, high=5, size=(self.OUTPUT_DIM, self.FEATURE_DIM)).astype("double")
-        # self.weight_matrix = np.random.rand(self.OUTPUT_DIM, self.FEATURE_DIM)
-        self.weight_matrix = np.zeros((self.OUTPUT_DIM, self.FEATURE_DIM), dtype=float)
         return input_matrix
 
     def compute_score(self, w_vec, x_vec):
@@ -107,38 +156,67 @@ class Model:
 
         left_sum = np.zeros((1, self.FEATURE_DIM))
         right_sum = np.zeros((1, self.FEATURE_DIM))
+
+        # set up multi-threading
+        num_threads = 20
+        threads = [None] * num_threads
+        left_result = {}  # shared dict for all threads
+        right_result = {}
+
         # compute total feature count over examples with true y class
         for partial_index in range(0, self.OUTPUT_DIM):  # for each partial gradient (i.e. weight vector)
-            # compute expectation quantity from what the model predicts (using predicted labels)
-            for input_index, data_point in enumerate(self.data_points_list):
-                feature_vec = self.input_matrix[input_index]
-                max_ent = self.maximum_entropy(input_index, partial_index)
+            # reset accumulators
+            for i in range(num_threads):
+                left_result[i] = np.zeros((1, self.FEATURE_DIM))
+                right_result[i] = np.zeros((1, self.FEATURE_DIM))
+            # initialize threads
+            for i in range(num_threads):
+                # set up start and ending indices for each thread's access to input matrix
+                step = len(self.input_matrix) // num_threads
+                remainder = len(self.input_matrix) % num_threads
+                start_ind = step * i
+                if i == num_threads - 1:  # if last thread, give it remainder
+                    end_ind = start_ind + step + remainder
+                else:
+                    end_ind = start_ind + step
+                threads[i] = threading.Thread(target=self.compute_gradient_threading,
+                                              args=(partial_index, start_ind, end_ind, left_result, right_result),
+                                              name=str(i))
+                threads[i].start()
+                threads[i].join()
+            # add results from threads
+            for i in range(num_threads):
+                right_sum = np.add(right_sum, right_result[i])
+                left_sum = np.add(left_sum, left_result[i])
 
-                right_sum = np.add(right_sum, max_ent * feature_vec)
-
-            for input_index, data_point in enumerate(self.data_points_list):  # for each input
-                feature_vec = self.input_matrix[input_index]
-                true_label_index = self.label_dict[data_point.true_label]
-
-                if true_label_index == partial_index:  # if derivative w.r.t current class is the same as true class of input
-                    left_sum = np.add(left_sum, feature_vec)
-
-            #right_sum = (1/self.INPUT_DIM) * right_sum
-            #left_sum = (1 / self.INPUT_DIM) * left_sum
             partial_gradients[partial_index] = left_sum - right_sum - (2 * self.lamb * self.weight_matrix[partial_index])
-            #partial_gradients = (1/self.INPUT_DIM) * partial_gradients
 
         partial_gradients = partial_gradients / self.INPUT_DIM
 
-        #TODO debug
-        for i in range(0, self.OUTPUT_DIM):
-            #print(partial_gradients[i])
-            max = np.max(np.array(partial_gradients[i]))
-            min = np.min(np.array(partial_gradients[i]))
-            print("\t w_%d: max=%f, min=%f" % (i, max, min))
-
         return partial_gradients
 
+    def compute_gradient_threading(self, partial_index, start_ind, end_ind, left_result, right_result):
+        thread_id = int(threading.current_thread().name)
+        right_acc = right_result[thread_id]  # get thread_id
+        left_acc = left_result[thread_id]
+
+        # compute expectation quantity from what the model predicts (using predicted labels)
+        for input_index in range(start_ind, end_ind):
+            feature_vec = self.input_matrix[input_index]
+            max_ent = self.maximum_entropy(input_index, partial_index)
+
+            right_acc = np.add(right_acc, max_ent * feature_vec)
+
+        for input_index in range(start_ind, end_ind):  # for each input
+            feature_vec = self.input_matrix[input_index]
+            true_label_index = self.data_points_list[input_index].true_label_index
+
+            if true_label_index == partial_index:  # if derivative w.r.t current class is the same as true class of input
+                left_acc = np.add(left_acc, feature_vec)
+
+        # update result
+        right_result[thread_id] = right_acc
+        left_result[thread_id] = left_acc
     def gradient_ascent(self):
         """
         Gradient ascent routine
@@ -150,65 +228,60 @@ class Model:
         t = 0
         diff = 0
 
-        while t == 0 or diff > epsilon:
-            # for plotting use
-            print("%d: %s" % (t, diff))
-            #self.plot_data_x.append(t)
-            #self.plot_data_y.append(obj)
+        start_time = time.time()
+
+        while t == 0 or diff > epsilon or t <= 1000:
 
             t += 1
             prev_weights = self.weight_matrix
             curr_weights = np.add(prev_weights, (lr * self.compute_gradient()))
-            lr = lr_0 #/ (self.INPUT_DIM) # * math.sqrt(t))
+            lr = lr_0 / math.sqrt(t)
             diff = np.linalg.norm(np.subtract(curr_weights, prev_weights))
-            #print("%d: %s" % (t, diff))
 
             self.weight_matrix = curr_weights
 
-            self.compute_accuracy()
-            print("obj: %f" % self.objective_function())
+            obj = self.objective_function()
+            #training_accuracy = self.compute_accuracy(self.data_points_list, self.input_matrix)
+            validation_accuracy = self.compute_accuracy(self.valid_data_points_list, self.valid_matrix)
+            # for plotting use
+            # print("%d: diff=%f, obj=%f, train_acc=%f, valid_acc=%f" % (t, diff, obj, training_accuracy, validation_accuracy))
+            print("%d: diff=%f, obj=%f, valid_acc=%f" % (t, diff, obj, validation_accuracy))
 
-    def compute_accuracy(self):
-        self.compute_all_predicted_labels()  # update all predicted labels
+            self.plot_data_x.append(t)
+            self.plot_data_y.append(obj)
 
-        '''
-        for i, data_point in enumerate(self.data_points_list):
-            print("true: %s, pred: %s" % (data_point.true_label, data_point.pred_label))
-        '''
+        end_time = time.time()
+        print('total time = ' + str(start_time - end_time))
+
+    def compute_accuracy(self, data_points_list, matrix):
+        self.compute_all_predicted_labels(data_points_list, matrix)  # update all predicted labels
 
         count = 0
-        for i, data_point in enumerate(self.data_points_list):
-            if data_point.pred_label == data_point.true_label:
+        for i, data_point in enumerate(data_points_list):
+            if data_point.pred_label_index == data_point.true_label_index:
                 count += 1
 
-        print("Accuracy: %f" %(count / len(self.data_points_list)))
+        return count / len(data_points_list)
 
-    def compute_all_predicted_labels(self):
+    def compute_all_predicted_labels(self, data_points_list, matrix):
         """
         computes and updates predicted labels for each input
         :return:
         """
-        for i, data_point in enumerate(self.data_points_list):
-            data_point.pred_label = self.update_predicted_label_from_index(i)
+        for i, data_point in enumerate(data_points_list):
+            data_point.pred_label_index = self.update_predicted_label_from_index(i, matrix)
 
-    def update_predicted_label_from_index(self, input_index):
+    def update_predicted_label_from_index(self, input_index, matrix):
         """
         From input data index, update its associated predicted label
         :param input_index:
         :return:
         """
-        x_vec = self.input_matrix[input_index]
-        max_val = -(sys.float_info.max - 1)
-        max_key = None  # label name
-
-        # find max score
-        for key, value in self.label_dict.items():  # for each {class name: class index}
-            score = self.compute_score(self.weight_matrix[value], x_vec)  # each class weight vector
-            if score > max_val:
-                max_val = score
-                max_key = key
-
-        return max_key
+        feature_vect = matrix[input_index]
+        feature_vect = np.expand_dims(feature_vect, axis=1)
+        output_vect = np.dot(self.weight_matrix, feature_vect)
+        max_ind = np.argmax(output_vect)
+        return max_ind
 
     def objective_function(self):
         """
@@ -217,12 +290,9 @@ class Model:
         """
         obj_func = 0
         for i, data_point in enumerate(self.data_points_list):  # for each row of input matrix
-
-            if i == 101:
-                print("")
-
             feature_vec = self.input_matrix[i]
-            label_index = self.label_dict[data_point.true_label]
+            #label_index = self.label_dict[data_point.true_label]
+            label_index = data_point.true_label_index
             weight_vec = self.weight_matrix[label_index]
 
             score = self.compute_score(weight_vec, feature_vec)
@@ -248,13 +318,16 @@ class Model:
 
         return obj_func - (lamb * (norm ** 2))
 
-    def plot_objective_function(self):
+    def plot_objective_function(self, name):
         fig = plt.figure()
-        plt.title("Unigram")
+        plt.title("BigramTrigram")
         plt.xlabel("t")
         plt.ylabel("L")
         plt.plot(self.plot_data_x, self.plot_data_y)
-        plt.show()
+        if not os.path.exists("./output"):
+            os.mkdir("./output")
+        else:
+            plt.savefig("./output/%s.png" % name)
 
 
 

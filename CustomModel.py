@@ -5,8 +5,8 @@ from Data_Point import Data_Point
 
 
 class CustomModel(Model):
-    def __init__(self, data):
-        super().__init__(data)
+    def __init__(self, data, valid_set, test_set):
+        super().__init__(data, valid_set, test_set)
         self.suffix_l = ["ac", "an", "alt", "ate", "al", "ax", "at", "ar", "air", "aine", "am", "cin",
                         "ec", "erm", "ex", "en", "el", "ene", "hyd", "ium", "ide", "is", "il", "ine", "it", "ir", "ix",
                         "ist", "in", "lin", "mic", "phen", "ound", "om", "ox", "ot", "ole", "ol", "ort", "oda", "ra",
@@ -27,6 +27,8 @@ class CustomModel(Model):
                            "bank", "banco", "laboratories"]
         self.special_l = ["-", "'s", ":", "!", "&"]
 
+        self.find_features_and_labels()
+        self.find_validation_features()
 
     def find_features_and_labels(self):
         data = self.data
@@ -58,24 +60,12 @@ class CustomModel(Model):
                     global_feat_dict[f] = global_feat_index
                     global_feat_index += 1
 
-                if label not in label_dict:
-                    label_dict[label] = label_index
-                    label_index += 1
-
-            '''
-            if label not in local_feat_dict:
-                local_feat_dict[label] = 1
-            if label not in global_feat_dict:
-                global_feat_dict[label] = global_feat_index
-                global_feat_index += 1
-
             if label not in label_dict:
                 label_dict[label] = label_index
                 label_index += 1
-            '''
 
             data_point = Data_Point()
-            data_point.true_label = label
+            data_point.true_label_index = label_dict[label]
             data_point.features_dict = local_feat_dict
             self.data_points_list.append(data_point)
 
@@ -110,5 +100,31 @@ class CustomModel(Model):
                 output_l.append(spec)
         return output_l
 
+    def find_validation_features(self):
+        data = self.valid_set
+
+        for item in data:
+            label = item[0]
+            input = str(item[1])
+
+            local_feat_dict = {}
+
+            discovered_features = []
+
+            discovered_features.extend(self.features_suffixes(input))
+            discovered_features.extend(self.features_words(input))
+            discovered_features.extend(self.features_special(input))
+
+            for f in discovered_features:
+                if f in self.feature_dict:  # if feature in global feat dict
+                    if f not in local_feat_dict:
+                        local_feat_dict[f] = 1
+                    else:
+                        local_feat_dict[f] += 1
+
+            data_point = Data_Point()
+            data_point.true_label_index = self.label_dict[label]
+            data_point.features_dict = local_feat_dict
+            self.valid_data_points_list.append(data_point)
 
 
