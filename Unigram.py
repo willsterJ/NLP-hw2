@@ -8,7 +8,8 @@ class Unigram(Model):
     def __init__(self, data, valid_set, test_set):
         super().__init__(data, valid_set, test_set)
         self.find_features_and_labels()
-        self.find_validation_features()
+        self.valid_data_points_list = self.validation_test_features(valid_set)
+        self.test_data_points_list = self.validation_test_features(test_set)
 
     def find_features_and_labels(self):
         """
@@ -51,8 +52,9 @@ class Unigram(Model):
         self.feature_dict = char_dict
         self.label_dict = label_dict
 
-    def find_validation_features(self):
-        for item in self.valid_set:
+    def validation_test_features(self, data_set):
+        output_list = []
+        for item in data_set:
             input = str(item[1])
             input = re.sub(r'[^\w]', '', input)  # remove spaces
             input_l = list(input)
@@ -70,6 +72,8 @@ class Unigram(Model):
                         input_char_dict[c] += 1
 
             data_point.features_dict = input_char_dict
-            data_point.true_label_index = self.label_dict[label]
-            self.valid_data_points_list.append(data_point)
+            if label != '':
+                data_point.true_label_index = self.label_dict[label]
+            output_list.append(data_point)
+        return output_list
 

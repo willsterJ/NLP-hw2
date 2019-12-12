@@ -9,3 +9,4 @@ class Config:
     epsilon = 0.00005
     learning_rate = 0.5
     num_threads = 8
+    t = 500

@@ -11,7 +11,8 @@ class BiTrigram(Model):
         self.feature_list = []
 
         self.find_features_and_labels()
-        self.find_validation_features()
+        self.valid_data_points_list = self.validation_test_features(valid_set)
+        self.test_data_points_list = self.validation_test_features(test_set)
 
     def find_features_and_labels(self):
         data = self.data
@@ -60,8 +61,9 @@ class BiTrigram(Model):
         self.feature_dict = global_feat_dict
         self.label_dict = label_dict
 
-    def find_validation_features(self):
-        for item in self.valid_set:  # for each item...
+    def validation_test_features(self, data_set):
+        output_list = []
+        for item in data_set:  # for each item...
             # get data
             label = item[0]
             input = str(item[1])
@@ -86,6 +88,8 @@ class BiTrigram(Model):
                             local_feat_dict[s] += 1
 
             data_point = Data_Point()
-            data_point.true_label_index = self.label_dict[label]
+            if label != '':
+                data_point.true_label_index = self.label_dict[label]
             data_point.features_dict = local_feat_dict
-            self.valid_data_points_list.append(data_point)
+            output_list.append(data_point)
+        return output_list

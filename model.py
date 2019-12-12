@@ -1,15 +1,14 @@
 import config
 import numpy as np
 import math
-import sys
 import os
 import matplotlib
-matplotlib.use('Agg')
-import matplotlib.pyplot as plt
 from Data_Point import Data_Point
 import time
 import threading
-
+from IOModule import IOModule
+matplotlib.use('Agg')
+import matplotlib.pyplot as plt
 
 # parent class
 class Model:
@@ -27,6 +26,7 @@ class Model:
         self.input_matrix = None  # dim: input size x (feature size * num of labels)
         self.weight_matrix = None  # dim: feature_size * num_labels
         self.valid_matrix = None
+        self.test_matrix = None
         self.INPUT_DIM = 0
         self.FEATURE_DIM = 0
         self.OUTPUT_DIM = 0
@@ -44,29 +44,13 @@ class Model:
         """
         method that takes in 2 models and combines them into 1
         """
-        # get data point's local features
-        data_point_list1 = model1.data_points_list
-        data_point_list2 = model2.data_points_list
-
-        # combine data point attributes
-        for i in range(0, len(data_point_list1)):
-            data_point = Data_Point()
-            local_features_1 = data_point_list1[i].features_dict
-            local_features_2 = data_point_list2[i].features_dict
-            for key1, val1 in local_features_1.items():
-                data_point.features_dict[key1] = val1
-            for key2, val2 in local_features_2.items():
-                if key2 not in data_point.features_dict:
-                    data_point.features_dict[key2] = val2
-
-            data_point.true_label_index = data_point_list1[i].true_label_index
-            data_point.index = i
-            self.data_points_list.append(data_point)
+        self.data_points_list = self.__combine_data_points_list(model1.data_points_list, model2.data_points_list)
+        self.valid_data_points_list = self.__combine_data_points_list(model1.valid_data_points_list, model2.valid_data_points_list)
+        self.test_data_points_list = self.__combine_data_points_list(model1.test_data_points_list, model2.test_data_points_list)
 
         # combine feature to col map index
         self.feature_dict = model1.feature_dict
         col_size = len(model1.feature_dict)
-
         add_col_ind = 0
         for key2, val2 in model2.feature_dict.items():
             if key2 not in self.feature_dict:
@@ -88,6 +72,7 @@ class Model:
         self.weight_matrix = np.zeros((self.OUTPUT_DIM, self.FEATURE_DIM), dtype=float)
 
         self.valid_matrix = self.create_matrix(self.valid_data_points_list)
+        self.test_matrix = self.create_matrix(self.test_data_points_list)
 
     def create_matrix(self, data_point_list,):
         self.INPUT_DIM = len(data_point_list)
@@ -158,6 +143,9 @@ class Model:
         right_sum = np.zeros((1, self.FEATURE_DIM))
 
         # set up multi-threading
+        if self.INPUT_DIM < config.Config.num_threads:
+            config.Config.num_threads = self.INPUT_DIM - 1
+
         num_threads = config.Config.num_threads
         threads = [None] * num_threads
         left_result = {}  # shared dict for all threads
@@ -172,7 +160,7 @@ class Model:
             # initialize threads
             for i in range(num_threads):
                 # set up start and ending indices for each thread's access to input matrix
-                [start_ind, end_ind] = self.threading_find_start_end_index(i, len(self.input_matrix), num_threads)
+                [start_ind, end_ind] = self.__threading_find_start_end_index(i, len(self.input_matrix), num_threads)
                 threads[i] = threading.Thread(target=self.compute_gradient_threading,
                                               args=(partial_index, start_ind, end_ind, left_result, right_result),
                                               name=str(i))
@@ -225,7 +213,7 @@ class Model:
 
         start_time = time.time()
 
-        while t == 0 or diff > epsilon and t <= 500:
+        while t == 0 or diff > epsilon and t <= config.Config.t:
 
             t += 1
             prev_weights = self.weight_matrix
@@ -252,7 +240,7 @@ class Model:
         threads = [None] * config.Config.num_threads
 
         for i in range(len(threads)):
-            [start_ind, end_ind] = self.threading_find_start_end_index(i, len(data_points_list), len(threads))
+            [start_ind, end_ind] = self.__threading_find_start_end_index(i, len(data_points_list), len(threads))
             threads[i] = threading.Thread(target=self.compute_all_predicted_labels(data_points_list, matrix, start_ind, end_ind))
             threads[i].start()
             threads[i].join()
@@ -289,7 +277,7 @@ class Model:
         obj_sums = {}
 
         for i in range(len(threads)):
-            [start_ind, end_ind] = self.threading_find_start_end_index(i, len(self.input_matrix), len(threads))
+            [start_ind, end_ind] = self.__threading_find_start_end_index(i, len(self.input_matrix), len(threads))
             obj_sums[i] = 0
             threads[i] = threading.Thread(target=self.objective_function,
                                           args=(start_ind, end_ind, obj_sums), name=str(i))
@@ -344,7 +332,19 @@ class Model:
         else:
             plt.savefig("./output/%s.png" % name)
 
-    def threading_find_start_end_index(self, i, size, num_threads):
+    def compute_test_predictions(self):
+        self.compute_all_predicted_labels(self.test_data_points_list, self.test_matrix, 0, len(self.test_data_points_list))
+
+        reverse_label_dict = {ind: label for label, ind in self.label_dict.items()}  # reverse the mapping to {col_ind: label}
+
+        for i in range(len(self.test_set)):  # each row in original test numpy array
+            self.test_set[i][0] = reverse_label_dict[self.test_data_points_list[i].pred_label_index]
+
+        # write to output
+        IO = IOModule()
+        IO.write_output(self.test_set, './hw2/output.txt')
+
+    def __threading_find_start_end_index(self, i, size, num_threads):
         step = size // num_threads
         remainder = size % num_threads
         start_ind = step * i
@@ -354,4 +354,26 @@ class Model:
             end_ind = start_ind + step
         return start_ind, end_ind
 
+    def __combine_data_points_list(self, data_point_list1, data_point_list2):
+        """
+        combines 2 models' data_points_list's item parameters.
+        """
+        output_list = []
+        # combine data point attributes
+        for i in range(0, len(data_point_list1)):
+            data_point = Data_Point()
+            local_features_1 = data_point_list1[i].features_dict
+            local_features_2 = data_point_list2[i].features_dict
+
+            # populate local_features with {feature: count}
+            for key1, val1 in local_features_1.items():
+                data_point.features_dict[key1] = val1
+            for key2, val2 in local_features_2.items():
+                if key2 not in data_point.features_dict:
+                    data_point.features_dict[key2] = val2
+
+            data_point.true_label_index = data_point_list1[i].true_label_index
+            data_point.index = i
+            output_list.append(data_point)
+        return output_list
 

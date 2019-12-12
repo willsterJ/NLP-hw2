@@ -7,7 +7,7 @@ import re
 import numpy as np
 
 
-class LoadData:
+class IOModule:
 
     def read_file(self, path):
         """
@@ -43,3 +43,11 @@ class LoadData:
 
         return a
 
+    def write_output(self, data_set, dest_path):
+        print('writing to ' + dest_path)
+        with open(dest_path, 'w') as fp:
+            for data in data_set:
+                s = str(data[0]).ljust(8)
+                s = s + str(data[1])
+                fp.write('%s\n' % s)
+        print('done.')

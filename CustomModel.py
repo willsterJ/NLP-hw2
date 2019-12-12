@@ -28,7 +28,8 @@ class CustomModel(Model):
         self.special_l = ["-", "'s", ":", "!", "&"]
 
         self.find_features_and_labels()
-        self.find_validation_features()
+        self.valid_data_points_list = self.validation_test_features(valid_set)
+        self.test_data_points_list = self.validation_test_features(test_set)
 
     def find_features_and_labels(self):
         data = self.data
@@ -100,10 +101,9 @@ class CustomModel(Model):
                 output_l.append(spec)
         return output_l
 
-    def find_validation_features(self):
-        data = self.valid_set
-
-        for item in data:
+    def validation_test_features(self, data_set):
+        output_list = []
+        for item in data_set:
             label = item[0]
             input = str(item[1])
 
@@ -123,8 +123,9 @@ class CustomModel(Model):
                         local_feat_dict[f] += 1
 
             data_point = Data_Point()
-            data_point.true_label_index = self.label_dict[label]
+            if label != '':
+                data_point.true_label_index = self.label_dict[label]
             data_point.features_dict = local_feat_dict
-            self.valid_data_points_list.append(data_point)
-
+            output_list.append(data_point)
+        return output_list
 
