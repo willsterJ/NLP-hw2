@@ -36,6 +36,7 @@ class Model:
         # to be used for plotting objective function
         self.plot_data_x = []
         self.plot_data_y = []
+        self.plot_data_acc = []
 
     def find_features_and_labels(self):  # subclass implemented function
         pass
@@ -232,6 +233,7 @@ class Model:
 
             self.plot_data_x.append(t)
             self.plot_data_y.append(obj)
+            self.plot_data_acc.append(validation_accuracy)
 
         end_time = time.time()
         print('total time = ' + str(start_time - end_time))
@@ -321,16 +323,22 @@ class Model:
 
         return obj_func - (lamb * (norm ** 2))
 
-    def plot_objective_function(self, name):
+    def plot_output(self, name):
+        if not os.path.exists("./output"):
+            os.mkdir("./output")
         fig = plt.figure()
         plt.title(name)
         plt.xlabel("t")
-        plt.ylabel("L")
+        plt.ylabel("obj")
         plt.plot(self.plot_data_x, self.plot_data_y)
-        if not os.path.exists("./output"):
-            os.mkdir("./output")
-        else:
-            plt.savefig("./output/%s.png" % name)
+        plt.savefig("./output/%s_obj.png" % name)
+
+        fig2 = plt.figure()
+        plt.title(name)
+        plt.xlabel("t")
+        plt.ylabel("valid acc")
+        plt.plot(self.plot_data_x, self.plot_data_acc)
+        plt.savefig("./output/%s_valid_acc.png" % name)
 
     def compute_test_predictions(self):
         self.compute_all_predicted_labels(self.test_data_points_list, self.test_matrix, 0, len(self.test_data_points_list))

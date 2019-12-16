@@ -48,6 +48,6 @@ model.generate_input_matrix()
 
 model.gradient_ascent()
 
-model.plot_objective_function(args.model)
+model.plot_output(args.model)
 
 model.compute_test_predictions()
